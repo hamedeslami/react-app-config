@@ -1,24 +1,53 @@
-import { toast } from "react-toastify";
-import { store } from "../store/store.js";
-import { logout } from "../store/user/user.reducers";
+import axios from 'axios';
+import {toast} from "react-toastify";
+import {store} from "../store/store.js";
+import {logout} from "../store/user/user.reducers";
 
-// const axiosInstance = axios.create();
+const axiosInstance = axios.create();
+const BASE_API_URL = import.meta.env.VITE_BASE_URL;
 
-const BASE_API_URL = "http://127.0.0.1:8000/api/v1";
+const onUnAuthorize = async (error) => {
+    const roginalRequest = error.config;
+    const { user } = store.getState();
+    const { refreshToken, token } = user;
+
+    try {
+        const refreshData = await axiosInstance.post(
+            `${BASE_API_URL}/refresh-token`,
+            { refreshToken },
+            { headers: { Authorization: token } },
+        );
+
+        const newToken = refreshData?.data?.data?.token;
+        if (!newToken) throw 'token is invalid';
+
+        store.dispatch(login({ ...user, token: newToken }));
+        return axios({
+            ...roginalRequest,
+            headers: { ...roginalRequest?.headers, Authorization: newToken },
+        });
+    } catch (e) {
+        store.dispatch(logout());
+        return Promise.reject(error || error);
+    }
+};
 
 const onForbiden = () => {
     store.dispatch(logout());
 };
 
 const onRequest = (config) => {
-    const newConfig = { ...config };
+    const newConfig = {...config};
     const {
-        user: { token },
+        user: {token},
     } = store.getState();
 
     newConfig.baseURL = BASE_API_URL;
     newConfig.headers["Content-Type"] = "application/json";
-    newConfig.headers["Authorization"] = "Bearer " + token;
+
+    if (token) {
+        newConfig.headers["Authorization"] = "Bearer " + token;
+    }
 
     return newConfig;
 };
@@ -32,15 +61,16 @@ const onResponse = (response) => {
 };
 
 const onResponseError = async (error) => {
+    const realStatus = error?.response?.status;
     const realError = error.response;
 
-    if (realError.status && +realError.status === 401) {
-        return onForbiden();
-    } else if (realError.status && +realError.status === 403) {
+    if (realStatus === 401) {
+        return onUnAuthorize(error);
+    } else if (+realStatus === 403) {
         onForbiden();
     }
 
-    toast.error(realError.data?.data.message || error.message);
+    toast.error(realError.data?.message || error?.message);
     return Promise.reject(realError || error);
 };
 
