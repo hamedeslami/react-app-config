@@ -1,13 +1,13 @@
 import axios from 'axios';
 import {toast} from "react-toastify";
 import {store} from "../store/store.js";
-import {logout} from "../store/user/user.reducers";
+import {login, logout} from "../store/user/user.reducers";
 
 const axiosInstance = axios.create();
 const BASE_API_URL = import.meta.env.VITE_BASE_URL;
 
 const onUnAuthorize = async (error) => {
-    const roginalRequest = error.config;
+    const originalRequest = error.config;
     const { user } = store.getState();
     const { refreshToken, token } = user;
 
@@ -23,8 +23,8 @@ const onUnAuthorize = async (error) => {
 
         store.dispatch(login({ ...user, token: newToken }));
         return axios({
-            ...roginalRequest,
-            headers: { ...roginalRequest?.headers, Authorization: newToken },
+            ...originalRequest,
+            headers: { ...originalRequest?.headers, Authorization: newToken },
         });
     } catch (e) {
         store.dispatch(logout());
